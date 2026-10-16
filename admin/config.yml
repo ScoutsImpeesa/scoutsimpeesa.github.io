@@ -1,0 +1,427 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Configuración del panel /admin (Sveltia CMS)
+#  Cada "collection" es un apartado del menú lateral del panel y cada "field" un campo
+#  del formulario. Los nombres (name) DEBEN coincidir con el esquema de
+#  src/content.config.ts (o con las claves de los archivos .json), o el build fallará.
+#  Explicación detallada: docs/PAGINAS.md (y docs/PUBLICACIONES.md para publicaciones)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+backend:
+  name: github
+  repo: ScoutsImpeesa/web-scout-impeesa   # usuario u organización de GitHub / nombre del repo
+  branch: main
+  # base_url: https://sveltia-cms-auth.TU-CUENTA.workers.dev   # ← solo si montas el login OAuth (ver docs)
+  commit_messages:
+    create: 'Nueva {{collection}}: {{slug}}'
+    update: 'Editar {{collection}}: {{slug}}'
+    delete: 'Borrar {{collection}}: {{slug}}'
+    uploadMedia: 'Subir archivo {{path}}'
+    deleteMedia: 'Borrar archivo {{path}}'
+
+site_url: https://scoutsimpeesa.es
+locale: es
+
+# Imágenes subidas desde el panel (cada colección puede usar su propia carpeta):
+#   media_folder  → dónde se guardan dentro del repositorio
+#   public_folder → cómo se escribe la ruta en el contenido (lo que ve el navegador)
+media_folder: public/img/publicaciones
+public_folder: /img/publicaciones
+
+media_libraries:
+  default:
+    config:
+      slugify_filename: true          # "Foto Campa 1.JPG" → foto-campa-1.webp
+      transformations:
+        raster_image:                 # optimiza las fotos al subirlas (las de móvil pesan 4-8 MB)
+          format: webp
+          quality: 82
+          width: 1600
+          height: 1600
+
+collections:
+  # ─── Publicaciones ──────────────────────────────────────────────────────────
+  - name: publicaciones               # nombre interno
+    label: Publicaciones
+    label_singular: Publicación
+    description: Campamentos, actividades y avisos. Si tienen fechas, salen solos en el Calendario.
+    editor: { preview: false }        # oculta el panel "Vista previa" (no es útil en esta web)
+    folder: src/content/publicaciones # carpeta con un .md por publicación
+    extension: md
+    format: frontmatter
+    create: true
+    # Nombre del archivo (= URL). {{year}} evita choques: "Campamento de verano" cada año
+    slug: '{{year}}-{{slug}}'
+    identifier_field: titulo
+    summary: '{{fecha}} · {{titulo}}'
+    sortable_fields: [fecha, titulo, tipo]
+    view_filters:
+      - { label: Campamentos, field: tipo, pattern: campamento }
+      - { label: Actividades, field: tipo, pattern: actividad }
+      - { label: Avisos, field: tipo, pattern: aviso }
+      - { label: Borradores, field: borrador, pattern: true }
+    fields:
+      - { name: titulo, label: Título, widget: string }
+      - name: fecha
+        label: Fecha de publicación
+        hint: Ordena el listado (la más reciente primero). No es la fecha del evento.
+        widget: datetime
+        type: date
+        time_format: false
+        format: YYYY-MM-DD
+        default: '{{now}}'
+      - name: tipo
+        label: Tipo
+        widget: select
+        default: actividad
+        options:   # value debe existir en TIPOS_PUBLICACION (src/content.config.ts)
+          - { label: Campamento, value: campamento }
+          - { label: Actividad, value: actividad }
+          - { label: Aviso, value: aviso }
+      - name: resumen
+        label: Resumen
+        hint: 1-2 frases. Aparece en las tarjetas, en la portada y en Google.
+        widget: text
+      - name: portada
+        label: Imagen de portada
+        hint: Opcional. Horizontal, se recorta a 16:9.
+        widget: image
+        required: false
+      - name: ramas
+        label: Ramas participantes
+        hint: El Kraal no se marca, participa siempre.
+        widget: select
+        multiple: true
+        required: false
+        options:   # value = nombre del archivo en src/content/ramas/ (sin .md)
+          - { label: Manada, value: manada }
+          - { label: Tropa, value: tropa }
+          - { label: Pioneros, value: pioneros }
+          - { label: Rutas, value: rutas }
+      - name: inicio
+        label: Inicio del evento
+        hint: Opcional. Si lo rellenas, la publicación aparece en el Calendario.
+        widget: datetime
+        type: date
+        time_format: false
+        format: YYYY-MM-DD
+        required: false
+      - name: fin
+        label: Fin del evento
+        hint: Opcional. Déjalo vacío si dura un solo día.
+        widget: datetime
+        type: date
+        time_format: false
+        format: YYYY-MM-DD
+        required: false
+      - { name: lugar, label: Lugar, widget: string, required: false }
+      - name: galeria
+        label: Galería de fotos
+        widget: list
+        required: false
+        collapsed: true
+        summary: '{{fields.alt}}'
+        fields:
+          - { name: src, label: Foto, widget: image }
+          - { name: alt, label: Descripción de la foto, hint: 'Para personas ciegas y Google. Ej.: "Tropa montando tiendas"', widget: string }
+      - name: documentos
+        label: Documentos (autorizaciones, circulares…)
+        hint: Se muestran como botones de descarga al principio de la publicación.
+        widget: list
+        required: false
+        summary: '{{fields.nombre}}'
+        fields:
+          - { name: nombre, label: Texto del enlace, hint: 'Ej.: "Autorización de salida"', widget: string }
+          - name: archivo
+            label: Archivo
+            hint: PDF preferiblemente. Usa nombres claros, p. ej. autorizacion-campamento-2027.pdf
+            widget: file
+            # Carpeta propia para documentos (no mezclar con las fotos).
+            # "/" inicial = ruta desde la raíz del repositorio.
+            media_folder: /public/docs/publicaciones
+            public_folder: /docs/publicaciones
+      - name: borrador
+        label: Borrador
+        hint: Activado = se guarda pero NO aparece en la web.
+        widget: boolean
+        default: false
+      - { name: body, label: Texto, widget: markdown }
+
+  # ─── Mapa de campamentos ────────────────────────────────────────────────────
+  # Un archivo .json por lugar en src/content/lugares/. Cada uno es un marcador en /mapa.
+  - name: lugares
+    label: Mapa de campamentos
+    label_singular: Lugar
+    description: Lugares donde hemos acampado. Cada uno aparece como marcador en el mapa.
+    editor: { preview: false }
+    folder: src/content/lugares
+    extension: json
+    format: json
+    create: true
+    slug: '{{slug}}'
+    identifier_field: nombre
+    summary: '{{nombre}}'
+    sortable_fields: [nombre]
+    media_folder: /public/img/lugares       # fotos de los lugares
+    public_folder: /img/lugares
+    fields:
+      - { name: nombre, label: Nombre del lugar, hint: 'Ej.: Sierra de Mariola', widget: string }
+      - name: coordenadas
+        label: Coordenadas
+        hint: 'En Google Maps: clic derecho sobre el sitio → pulsa en los números de arriba (se copian) → pégalos aquí. Ejemplo: 38.3452, -0.4815'
+        widget: string
+      - { name: fecha, label: Cuándo fuimos, hint: 'Texto libre. Ej.: Verano 2026', widget: string, required: false }
+      - { name: descripcion, label: Descripción, hint: Opcional. 1-2 frases., widget: text, required: false }
+      - name: fotos
+        label: Fotos (se muestran las 2 primeras)
+        widget: list
+        required: false
+        max: 2
+        summary: '{{fields.alt}}'
+        fields:
+          - { name: src, label: Foto, widget: image }
+          - { name: alt, label: Descripción de la foto, hint: 'Para personas ciegas y Google. Ej.: "Tiendas montadas junto al río"', widget: string }
+      - name: galerias
+        label: Galerías de fotos enlazadas
+        hint: 'Opcional. Una por cada vez que acampamos aquí (p. ej. Arizkun 2019 y Arizkun 2025). El mapa muestra un botón por galería, que pide la contraseña. Primero hay que crearlas en "Galerías de fotos".'
+        widget: relation
+        multiple: true
+        collection: galerias
+        value_field: '{{slug}}'
+        search_fields: [titulo]
+        display_fields: [titulo]
+        required: false
+
+  # ─── Galerías de fotos (enlaces a Drive con contraseña) ─────────────────────
+  - name: galerias
+    label: Galerías de fotos
+    label_singular: Galería
+    description: Enlaces a las carpetas de Drive con las fotos de cada actividad. Se ven en /galerias con contraseña.
+    editor: { preview: false }
+    folder: src/content/galerias
+    extension: json
+    format: json
+    create: true
+    slug: '{{slug}}'
+    identifier_field: titulo
+    summary: '{{fecha}} · {{titulo}}'
+    sortable_fields: [fecha, titulo]
+    fields:
+      - { name: titulo, label: Título, hint: 'Incluye el año. Ej.: Campamento de verano 2026', widget: string }
+      - name: fecha
+        label: Fecha
+        hint: Solo se muestran el mes y el año.
+        widget: datetime
+        type: date
+        time_format: false
+        format: YYYY-MM-DD
+      - { name: rama, label: Rama, hint: 'Texto libre. Ej.: Todo el grupo, Tropa Halley…', widget: string }
+      - { name: enlace, label: Enlace de Google Drive, hint: 'Pega el enlace de la carpeta (en Drive: Compartir → cualquiera con el enlace). Empieza por https://', widget: string }
+
+  # ─── Páginas de texto ───────────────────────────────────────────────────────
+  - name: paginas
+    label: Páginas
+    description: Textos de la portada y de las páginas fijas.
+    editor: { preview: false }
+    files:
+      - name: portada
+        label: Portada (página de inicio)
+        file: src/data/inicio.json
+        format: json
+        fields:
+          - { name: titulo, label: Título grande, widget: string }
+          - { name: subtitulo, label: Frase de presentación, widget: text }
+          - name: queHacemos
+            label: Bloques de «Qué hacemos»
+            widget: list
+            summary: '{{fields.titulo}}'
+            fields:
+              - { name: titulo, label: Título, widget: string }
+              - { name: texto, label: Texto, widget: text }
+          - name: cifras
+            label: Cifras del grupo
+            hint: Se muestran en una franja bajo la portada. Si la lista está vacía, no aparece.
+            widget: list
+            required: false
+            summary: '{{fields.valor}} {{fields.texto}}'
+            fields:
+              - { name: valor, label: Cifra, hint: 'Ej.: 1983, +100, 25', widget: string }
+              - { name: texto, label: Texto, hint: 'Ej.: Año de fundación, scouts, scouters voluntarios', widget: string }
+          - { name: uneteTitulo, label: Título del bloque final, widget: string }
+          - { name: uneteTexto, label: Texto del bloque final, widget: text }
+
+      - name: carrusel
+        label: Carrusel de fotos (portada)
+        file: src/data/galeria.json
+        format: json
+        media_folder: /public/img/galeria
+        public_folder: /img/galeria
+        fields:
+          - name: fotos
+            label: Fotos del carrusel
+            hint: 'Se muestran en este orden (arrástralas para reordenar) y pasan solas cada 6 segundos. Mejor fotos horizontales: se recortan a formato panorámico.'
+            widget: list
+            summary: '{{fields.alt}}'
+            fields:
+              - { name: src, label: Foto, widget: image }
+              - { name: alt, label: Pie de foto, hint: 'Se lee sobre la foto y ayuda a personas ciegas y a Google. Ej.: «Fuego de campamento en Arizkun 2025»', widget: string }
+
+      - name: quienes-somos
+        label: Quiénes somos
+        file: src/content/paginas/quienes-somos.md
+        format: frontmatter
+        fields:
+          - { name: titulo, label: Título de la página, widget: string }
+          - { name: resumen, label: Frase de introducción, widget: text, required: false }
+          - { name: body, label: Texto, widget: markdown }
+
+      - name: inscribirse
+        label: Inscribirse
+        file: src/content/paginas/inscribirse.md
+        format: frontmatter
+        fields:
+          - { name: titulo, label: Título de la página, widget: string }
+          - { name: resumen, label: Frase de introducción, widget: text, required: false }
+          - { name: matricula, label: Matrícula (€), hint: Pago único. Pon 0 si no hay., widget: number, value_type: float, min: 0, required: false }
+          - { name: cuotas, label: Número de cuotas, widget: number, value_type: int, min: 0, required: false }
+          - { name: importeCuota, label: Importe de cada cuota (€), hint: 'El total del curso se calcula solo.', widget: number, value_type: float, min: 0, required: false }
+          - name: pasos
+            label: Cómo apuntarse (pasos)
+            hint: Se muestran numerados en el orden de la lista.
+            widget: list
+            required: false
+            summary: '{{fields.titulo}}'
+            fields:
+              - { name: titulo, label: Título del paso, widget: string }
+              - { name: texto, label: Explicación, widget: text }
+          - name: faq
+            label: Preguntas frecuentes
+            hint: Cada pregunta se muestra plegada; al pulsarla se abre la respuesta.
+            widget: list
+            required: false
+            summary: '{{fields.pregunta}}'
+            fields:
+              - { name: pregunta, label: Pregunta, widget: string }
+              - { name: respuesta, label: Respuesta, widget: text }
+          - { name: body, label: Información adicional (texto libre), hint: Opcional. Se muestra entre las cuotas y las preguntas frecuentes., widget: markdown, required: false }
+
+      - name: documentacion
+        label: Documentación
+        file: src/data/documentacion.json
+        format: json
+        fields:
+          - { name: inscripcionTexto, label: Texto del bloque «Inscripción de chavales», hint: 'Una frase por línea. Para hacer una lista, empieza cada línea con un guion y un espacio: «- Nombre entero».', widget: text }
+          - name: inscripcion
+            label: Documentos de inscripción de chavales
+            widget: list
+            required: false
+            summary: '{{fields.nombre}}'
+            fields:
+              - { name: nombre, label: Nombre del documento, widget: string }
+              - { name: descripcion, label: Explicación breve, widget: string, required: false }
+              - name: archivo
+                label: Archivo
+                hint: PDF preferiblemente. Nombres sin espacios ni tildes, p. ej. ficha-inscripcion-2026.pdf
+                widget: file
+                media_folder: /public/docs/documentacion
+                public_folder: /docs/documentacion
+          - { name: apoyoTexto, label: Texto del bloque «Padres y madres de apoyo en campamentos», hint: 'Una frase por línea. Para hacer una lista, empieza cada línea con un guion y un espacio: «- Nombre entero».', widget: text }
+          - name: apoyo
+            label: Documentos para padres y madres de apoyo
+            widget: list
+            required: false
+            summary: '{{fields.nombre}}'
+            fields:
+              - { name: nombre, label: Nombre del documento, widget: string }
+              - { name: descripcion, label: Explicación breve, widget: string, required: false }
+              - name: archivo
+                label: Archivo
+                hint: PDF preferiblemente. Nombres sin espacios ni tildes.
+                widget: file
+                media_folder: /public/docs/documentacion
+                public_folder: /docs/documentacion
+
+      - name: aviso-legal
+        label: Aviso legal y privacidad
+        file: src/content/paginas/aviso-legal.md
+        format: frontmatter
+        fields:
+          - { name: titulo, label: Título de la página, widget: string }
+          - { name: resumen, label: Frase de introducción, widget: text, required: false }
+          - { name: borrador, label: Borrador (muestra aviso de «pendiente de revisión»), hint: Desmárcalo cuando los datos del titular estén completos y revisados., widget: boolean, default: false, required: false }
+          - { name: body, label: Texto, widget: markdown }
+
+  # ─── Ramas ──────────────────────────────────────────────────────────────────
+  # Solo editar las existentes (create/delete desactivados para no romper enlaces).
+  - name: ramas
+    label: Ramas
+    label_singular: Rama
+    editor: { preview: false }
+    folder: src/content/ramas
+    extension: md
+    format: frontmatter
+    create: false
+    delete: false
+    identifier_field: nombre
+    sortable_fields: [orden, nombre]
+    media_folder: /public/img/ramas   # "/" inicial = ruta desde la raíz del repositorio
+    public_folder: /img/ramas
+    fields:
+      - { name: nombre, label: Nombre, widget: string }
+      - { name: orden, label: Orden, widget: number, value_type: int }
+      - { name: color, label: Color, widget: color }
+      - { name: edades, label: Edades, hint: 'Ej.: De 8 a 10 años', widget: string }
+      - { name: metodologia, label: Metodología, widget: string }
+      - { name: division, label: Organización, widget: string }
+      - { name: lema, label: Lema, widget: string, required: false }
+      - { name: resumen, label: Resumen, widget: text }
+      - { name: portada, label: Portada, hint: 'Foto horizontal del grupo, de buena resolución. Se ve entera en la página de la rama.', widget: image }
+      - name: encuadre
+        label: Encuadre de la portada
+        hint: 'Solo para las tarjetas pequeñas (portada de la web y página Ramas), donde la foto se recorta: qué parte se conserva. Elige «Arriba» si las caras están en la parte de arriba.'
+        widget: select
+        default: centro
+        required: false
+        options:
+          - { label: Arriba, value: arriba }
+          - { label: Centro, value: centro }
+          - { label: Abajo, value: abajo }
+      - name: galeria
+        label: Galería
+        widget: list
+        required: false
+        collapsed: true
+        summary: '{{fields.alt}}'
+        fields:
+          - { name: src, label: Foto, widget: image }
+          - { name: alt, label: Descripción, widget: string }
+      - { name: body, label: Texto, widget: markdown }
+
+  # ─── Contacto (pie de página de todas las páginas) ──────────────────────────
+  - name: contacto
+    label: Contacto
+    description: Datos que aparecen en el pie de página de toda la web.
+    editor: { preview: false }
+    files:
+      - name: contacto
+        label: Datos de contacto
+        file: src/data/contacto.json
+        format: json
+        fields:   # mismas claves que el JSON
+          - { name: instagram, label: Usuario de Instagram (sin @), widget: string }
+          - { name: correo, label: Correo electrónico, hint: 'Completo, con la @. Ej.: grupo@gmail.com', widget: string }
+          - { name: direccion, label: Dirección del local, hint: Opcional. Si la dejas vacía no se muestra., widget: string, required: false }
+          - name: federaciones
+            label: Federaciones y asociaciones (logos del pie)
+            hint: Logos de las entidades a las que pertenece el grupo. Si la lista está vacía, no aparece nada.
+            widget: list
+            required: false
+            summary: '{{fields.nombre}}'
+            fields:
+              - { name: nombre, label: Nombre, hint: 'Ej.: Scouts de Alicante', widget: string }
+              - name: logo
+                label: Logo
+                hint: PNG o SVG, mejor con fondo transparente.
+                widget: image
+                media_folder: /public/img/federaciones
+                public_folder: /img/federaciones
+              - { name: enlace, label: Enlace a su web, hint: 'Opcional. Empieza por https://', widget: string, required: false }
