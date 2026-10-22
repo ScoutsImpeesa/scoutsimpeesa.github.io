@@ -1,0 +1,5 @@
+# El panel de administración no debe aparecer en Google
+User-agent: *
+Disallow: /admin/
+
+Sitemap: https://scoutsimpeesa.es/sitemap.xml
