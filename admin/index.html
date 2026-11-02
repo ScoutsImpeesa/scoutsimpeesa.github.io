@@ -1,0 +1,24 @@
+<!doctype html>
+<!--
+  Panel de administración (Sveltia CMS). Se abre en /admin/
+  Toda la configuración está en config.yml (misma carpeta).
+  Documentación: docs/PUBLICACIONES.md
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Administración · Grupo Scout Impeesa</title>
+  </head>
+  <body>
+    <!-- Versión fija + huella SRI: si el archivo de unpkg cambiara (p. ej. por un ataque), el navegador no lo ejecuta.
+         Para actualizar el panel: cambia el número, calcula la huella nueva
+         (curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A) y prueba /admin antes de publicar. -->
+    <script
+      src="https://unpkg.com/@sveltia/cms@0.233.0/dist/sveltia-cms.js"
+      integrity="sha384-lq8uMtdOlotHkm4oFSd+o7whev4/k4o8uZwio5iwuW8sJsUxf9K4OewbxVUzGP5m"
+      crossorigin="anonymous"
+    ></script>
+  </body>
+</html>
